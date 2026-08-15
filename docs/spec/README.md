@@ -21,3 +21,9 @@
 1. **單一事實來源 (Single Source of Truth)**：任何功能變更或欄位擴充，必須同步更新此處對應的規格章節。
 2. **型別一致性**：代碼中的 [types.ts](file:///c:/Users/CHIA%20WEI%20LIN/Desktop/出勤系統測試/Attendance-system/src/types.ts) 與後端驗證必須嚴格符合 [02-data-models.md](file:///c:/Users/CHIA%20WEI%20LIN/Desktop/出勤系統測試/Attendance-system/docs/spec/02-data-models.md)。
 3. **演算法集中化**：所有工時運算必須以 [03-business-rules.md](file:///c:/Users/CHIA%20WEI%20LIN/Desktop/出勤系統測試/Attendance-system/docs/spec/03-business-rules.md) 規範之純函式實作，嚴禁在視圖層散落獨立公式。
+
+---
+
+## 相關規劃章節
+- 未來版本迭代與產品功能規劃請參閱 [docs/plan/README.md](file:///c:/Users/CHIA%20WEI%20LIN/Desktop/出勤系統測試/Attendance-system/docs/plan/README.md)。
+
