@@ -61,3 +61,20 @@ export interface DayScheduleDetail {
   actualHours: number;
   status: 'attended' | 'working' | 'leave' | 'absent' | 'rest' | 'future_work' | 'future_rest';
 }
+
+export type TaskStatus = 'todo' | 'in_progress' | 'review' | 'done';
+export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent';
+
+export interface KanbanTask {
+  id: string;
+  title: string;
+  description?: string;
+  status: TaskStatus;
+  priority: TaskPriority;
+  assigneeId?: string; // Links to Employee.id
+  dueDate?: string; // YYYY-MM-DD
+  tags?: string[];
+  estimatedHours?: number;
+  createdAt: string;
+  updatedAt: string;
+}

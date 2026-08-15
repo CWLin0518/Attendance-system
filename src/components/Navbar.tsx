@@ -10,6 +10,7 @@ import {
   CalendarCheck,
   ChevronDown,
   Server,
+  Kanban,
 } from 'lucide-react';
 import { EmployeeManageModal } from './EmployeeManageModal';
 import { SchemaReferenceModal } from './SchemaReferenceModal';
@@ -23,6 +24,7 @@ export const Navbar: React.FC = () => {
     setSelectedEmployeeId,
     selectedEmployee,
     employees,
+    kanbanTasks,
     currentTime,
     resetToInitial,
     showToast,
@@ -108,7 +110,7 @@ export const Navbar: React.FC = () => {
                   type="button"
                   id="tab-employee-view"
                   onClick={() => setCurrentView('employee')}
-                  className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs sm:text-sm font-semibold transition-all ${
+                  className={`flex items-center gap-1.5 px-3 sm:px-4 py-1.5 rounded-full text-xs sm:text-sm font-semibold transition-all ${
                     currentView === 'employee'
                       ? 'bg-white text-[#6B705C] shadow-sm'
                       : 'text-[#A5A295] hover:text-[#3D3C35]'
@@ -121,7 +123,7 @@ export const Navbar: React.FC = () => {
                   type="button"
                   id="tab-admin-view"
                   onClick={() => setCurrentView('admin')}
-                  className={`flex items-center gap-1.5 px-4 py-1.5 rounded-full text-xs sm:text-sm font-semibold transition-all ${
+                  className={`flex items-center gap-1.5 px-3 sm:px-4 py-1.5 rounded-full text-xs sm:text-sm font-semibold transition-all ${
                     currentView === 'admin'
                       ? 'bg-white text-[#6B705C] shadow-sm'
                       : 'text-[#A5A295] hover:text-[#3D3C35]'
@@ -129,6 +131,30 @@ export const Navbar: React.FC = () => {
                 >
                   <ShieldCheck className="w-3.5 h-3.5" />
                   <span>管理後台</span>
+                </button>
+                <button
+                  type="button"
+                  id="tab-kanban-view"
+                  onClick={() => setCurrentView('kanban')}
+                  className={`flex items-center gap-1.5 px-3 sm:px-4 py-1.5 rounded-full text-xs sm:text-sm font-semibold transition-all ${
+                    currentView === 'kanban'
+                      ? 'bg-white text-[#6B705C] shadow-sm'
+                      : 'text-[#A5A295] hover:text-[#3D3C35]'
+                  }`}
+                >
+                  <Kanban className="w-3.5 h-3.5" />
+                  <span>專案看板</span>
+                  {kanbanTasks && kanbanTasks.length > 0 && (
+                    <span
+                      className={`text-[10px] font-mono px-1.5 py-0.2 rounded-full font-bold ${
+                        currentView === 'kanban'
+                          ? 'bg-[#6B705C] text-white'
+                          : 'bg-[#EAE8DD] text-[#6B705C]'
+                      }`}
+                    >
+                      {kanbanTasks.filter((t) => t.status !== 'done').length}
+                    </span>
+                  )}
                 </button>
               </nav>
             </div>

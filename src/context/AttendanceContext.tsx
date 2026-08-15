@@ -1,11 +1,20 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
-import { AttendanceLog, Employee, LeaveRequest, LeaveType, ScheduleOverride, ToastMessage } from '../types';
+import {
+  AttendanceLog,
+  Employee,
+  LeaveRequest,
+  LeaveType,
+  ScheduleOverride,
+  ToastMessage,
+  KanbanTask,
+  TaskStatus,
+} from '../types';
 import { getInitialData } from '../data/initialData';
 import { formatDate, formatTime } from '../utils/timeCalculations';
 
 interface AttendanceContextType {
-  currentView: 'employee' | 'admin';
-  setCurrentView: (view: 'employee' | 'admin') => void;
+  currentView: 'employee' | 'admin' | 'kanban';
+  setCurrentView: (view: 'employee' | 'admin' | 'kanban') => void;
   selectedEmployeeId: string;
   setSelectedEmployeeId: (id: string) => void;
   selectedEmployee: Employee | undefined;
@@ -13,6 +22,7 @@ interface AttendanceContextType {
   attendanceLogs: AttendanceLog[];
   leaveRequests: LeaveRequest[];
   scheduleOverrides: ScheduleOverride[];
+  kanbanTasks: KanbanTask[];
   toasts: ToastMessage[];
   currentTime: Date;
   todayStr: string;
@@ -24,6 +34,10 @@ interface AttendanceContextType {
   removeScheduleOverride: (employee_id: string, date: string) => void;
   addEmployee: (name: string, department?: string, title?: string) => void;
   deleteEmployee: (employeeId: string) => void;
+  addTask: (task: Omit<KanbanTask, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateTask: (taskId: string, updates: Partial<KanbanTask>) => void;
+  moveTaskStatus: (taskId: string, newStatus: TaskStatus) => void;
+  deleteTask: (taskId: string) => void;
   showToast: (type: 'success' | 'error' | 'info', message: string) => void;
   removeToast: (id: string) => void;
   resetToInitial: () => void;
@@ -35,12 +49,13 @@ const AttendanceContext = createContext<AttendanceContextType | undefined>(undef
 export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const initial = getInitialData();
 
-  const [currentView, setCurrentView] = useState<'employee' | 'admin'>('employee');
+  const [currentView, setCurrentView] = useState<'employee' | 'admin' | 'kanban'>('employee');
   const [employees, setEmployees] = useState<Employee[]>(initial.employees);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('EMP-001');
   const [attendanceLogs, setAttendanceLogs] = useState<AttendanceLog[]>(initial.attendanceLogs);
   const [leaveRequests, setLeaveRequests] = useState<LeaveRequest[]>(initial.leaveRequests);
   const [scheduleOverrides, setScheduleOverrides] = useState<ScheduleOverride[]>(initial.scheduleOverrides);
+  const [kanbanTasks, setKanbanTasks] = useState<KanbanTask[]>(initial.kanbanTasks || []);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [currentTime, setCurrentTime] = useState<Date>(new Date());
 
@@ -75,6 +90,7 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
         if (data.attendanceLogs) setAttendanceLogs(data.attendanceLogs);
         if (data.leaveRequests) setLeaveRequests(data.leaveRequests);
         if (data.scheduleOverrides) setScheduleOverrides(data.scheduleOverrides);
+        if (data.kanbanTasks) setKanbanTasks(data.kanbanTasks);
       }
     } catch {
       // Offline fallback: keep local state
@@ -148,9 +164,7 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
         }
         syncWithServer();
       })
-      .catch(() => {
-        // Handled silently
-      });
+      .catch(() => {});
 
     return true;
   };
@@ -200,9 +214,7 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
         }
         syncWithServer();
       })
-      .catch(() => {
-        // Handled silently
-      });
+      .catch(() => {});
 
     return true;
   };
@@ -354,6 +366,9 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
     setAttendanceLogs((prev) => prev.filter((l) => l.employee_id !== employeeId));
     setLeaveRequests((prev) => prev.filter((l) => l.employee_id !== employeeId));
     setScheduleOverrides((prev) => prev.filter((o) => o.employee_id !== employeeId));
+    setKanbanTasks((prev) =>
+      prev.map((t) => (t.assigneeId === employeeId ? { ...t, assigneeId: undefined } : t))
+    );
 
     if (selectedEmployeeId === employeeId) {
       const remaining = employees.filter((e) => e.id !== employeeId);
@@ -369,6 +384,87 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
       .catch(() => {});
   };
 
+  // ----------------------------------------------------
+  // Kanban Task Methods
+  // ----------------------------------------------------
+
+  const addTask = (taskData: Omit<KanbanTask, 'id' | 'createdAt' | 'updatedAt'>) => {
+    const newId = `TASK-${Date.now().toString().slice(-4)}`;
+    const nowIso = new Date().toISOString();
+    const newTask: KanbanTask = {
+      ...taskData,
+      id: newId,
+      createdAt: nowIso,
+      updatedAt: nowIso,
+    };
+
+    setKanbanTasks((prev) => [newTask, ...prev]);
+    showToast('success', `已建立專案任務：${newTask.title}`);
+
+    fetch('/api/kanban/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(taskData),
+    })
+      .then(() => syncWithServer())
+      .catch(() => {});
+  };
+
+  const updateTask = (taskId: string, updates: Partial<KanbanTask>) => {
+    const nowIso = new Date().toISOString();
+    setKanbanTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, ...updates, updatedAt: nowIso } : t))
+    );
+    showToast('success', '已更新任務資訊');
+
+    fetch(`/api/kanban/tasks/${taskId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(updates),
+    })
+      .then(() => syncWithServer())
+      .catch(() => {});
+  };
+
+  const moveTaskStatus = (taskId: string, newStatus: TaskStatus) => {
+    const task = kanbanTasks.find((t) => t.id === taskId);
+    if (!task) return;
+
+    const nowIso = new Date().toISOString();
+    setKanbanTasks((prev) =>
+      prev.map((t) => (t.id === taskId ? { ...t, status: newStatus, updatedAt: nowIso } : t))
+    );
+
+    const statusLabels: Record<TaskStatus, string> = {
+      todo: '待處理',
+      in_progress: '進行中',
+      review: '審核中',
+      done: '已完成',
+    };
+
+    showToast('info', `已將「${task.title}」移至【${statusLabels[newStatus]}】`);
+
+    fetch(`/api/kanban/tasks/${taskId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: newStatus }),
+    })
+      .then(() => syncWithServer())
+      .catch(() => {});
+  };
+
+  const deleteTask = (taskId: string) => {
+    const task = kanbanTasks.find((t) => t.id === taskId);
+    setKanbanTasks((prev) => prev.filter((t) => t.id !== taskId));
+    showToast('info', `已刪除任務：${task?.title || taskId}`);
+
+    fetch(`/api/kanban/tasks/${taskId}`, {
+      method: 'DELETE',
+    })
+      .then(() => syncWithServer())
+      .catch(() => {});
+  };
+
   // Reset to initial prototype state
   const resetToInitial = () => {
     const fresh = getInitialData();
@@ -377,6 +473,7 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
     setAttendanceLogs(fresh.attendanceLogs);
     setLeaveRequests(fresh.leaveRequests);
     setScheduleOverrides(fresh.scheduleOverrides);
+    setKanbanTasks(fresh.kanbanTasks || []);
     showToast('info', '已重置系統至初始資料狀態。');
 
     fetch('/api/reset', { method: 'POST' })
@@ -396,6 +493,7 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
         attendanceLogs,
         leaveRequests,
         scheduleOverrides,
+        kanbanTasks,
         toasts,
         currentTime,
         todayStr,
@@ -407,6 +505,10 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
         removeScheduleOverride,
         addEmployee,
         deleteEmployee,
+        addTask,
+        updateTask,
+        moveTaskStatus,
+        deleteTask,
         showToast,
         removeToast,
         resetToInitial,

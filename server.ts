@@ -39,6 +39,19 @@ interface DatabaseSchema {
   attendanceLogs: Array<{ id: number; employee_id: string; date: string; in_time: string | null; out_time: string | null }>;
   leaveRequests: Array<{ id: number; employee_id: string; date: string; type: string; reason?: string }>;
   scheduleOverrides: Array<{ id: number; employee_id: string; date: string; is_workday: boolean; start_time: string; end_time: string; note?: string }>;
+  kanbanTasks?: Array<{
+    id: string;
+    title: string;
+    description?: string;
+    status: 'todo' | 'in_progress' | 'review' | 'done';
+    priority: 'low' | 'medium' | 'high' | 'urgent';
+    assigneeId?: string;
+    dueDate?: string;
+    tags?: string[];
+    estimatedHours?: number;
+    createdAt: string;
+    updatedAt: string;
+  }>;
 }
 
 function loadDatabase(): DatabaseSchema {
@@ -49,7 +62,13 @@ function loadDatabase(): DatabaseSchema {
   }
   try {
     const raw = fs.readFileSync(DB_FILE, 'utf-8');
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    if (!parsed.kanbanTasks) {
+      const initial = getInitialData();
+      parsed.kanbanTasks = initial.kanbanTasks;
+      saveDatabase(parsed);
+    }
+    return parsed;
   } catch (err) {
     console.error('Error reading database file, resetting to initial data:', err);
     const initial = getInitialData();
@@ -302,7 +321,82 @@ app.delete('/api/employees/:id', (req, res) => {
   res.json({ success: true, message: `已刪除員工：${emp.name}` });
 });
 
-// 10. Reset Data
+// 10. Kanban Tasks API
+app.get('/api/kanban/tasks', (req, res) => {
+  const db = loadDatabase();
+  res.json({
+    success: true,
+    tasks: db.kanbanTasks || [],
+  });
+});
+
+app.post('/api/kanban/tasks', (req, res) => {
+  const { title, description, status, priority, assigneeId, dueDate, tags, estimatedHours } = req.body;
+  if (!title || !title.trim()) {
+    return res.status(400).json({ success: false, message: '請輸入任務標題' });
+  }
+
+  const db = loadDatabase();
+  if (!db.kanbanTasks) db.kanbanTasks = [];
+
+  const newTask = {
+    id: `TASK-${Date.now().toString().slice(-4)}`,
+    title: title.trim(),
+    description: description?.trim() || '',
+    status: status || 'todo',
+    priority: priority || 'medium',
+    assigneeId: assigneeId || undefined,
+    dueDate: dueDate || undefined,
+    tags: Array.isArray(tags) ? tags : [],
+    estimatedHours: typeof estimatedHours === 'number' ? estimatedHours : undefined,
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  db.kanbanTasks.unshift(newTask);
+  saveDatabase(db);
+  res.json({ success: true, message: `已建立任務：${newTask.title}`, task: newTask });
+});
+
+app.put('/api/kanban/tasks/:id', (req, res) => {
+  const taskId = req.params.id;
+  const db = loadDatabase();
+  if (!db.kanbanTasks) db.kanbanTasks = [];
+
+  const idx = db.kanbanTasks.findIndex((t) => t.id === taskId);
+  if (idx < 0) {
+    return res.status(404).json({ success: false, message: '找不到該任務' });
+  }
+
+  const current = db.kanbanTasks[idx];
+  const updatedTask = {
+    ...current,
+    ...req.body,
+    id: current.id,
+    updatedAt: new Date().toISOString(),
+  };
+
+  db.kanbanTasks[idx] = updatedTask;
+  saveDatabase(db);
+  res.json({ success: true, message: `已更新任務：${updatedTask.title}`, task: updatedTask });
+});
+
+app.delete('/api/kanban/tasks/:id', (req, res) => {
+  const taskId = req.params.id;
+  const db = loadDatabase();
+  if (!db.kanbanTasks) db.kanbanTasks = [];
+
+  const task = db.kanbanTasks.find((t) => t.id === taskId);
+  if (!task) {
+    return res.status(404).json({ success: false, message: '找不到該任務' });
+  }
+
+  db.kanbanTasks = db.kanbanTasks.filter((t) => t.id !== taskId);
+  saveDatabase(db);
+  res.json({ success: true, message: `已刪除任務：${task.title}` });
+});
+
+// 11. Reset Data
 app.post('/api/reset', (req, res) => {
   const initial = getInitialData();
   saveDatabase(initial);

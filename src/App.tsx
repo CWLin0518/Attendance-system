@@ -8,6 +8,7 @@ import { AttendanceProvider, useAttendance } from './context/AttendanceContext';
 import { Navbar } from './components/Navbar';
 import { EmployeeView } from './components/EmployeeView';
 import { AdminView } from './components/AdminView';
+import { KanbanView } from './components/KanbanView';
 import { ToastContainer } from './components/ToastContainer';
 import { motion, AnimatePresence } from 'motion/react';
 
@@ -27,7 +28,7 @@ const MainContent: React.FC = () => {
           >
             <EmployeeView />
           </motion.div>
-        ) : (
+        ) : currentView === 'admin' ? (
           <motion.div
             key="admin-view"
             initial={{ opacity: 0, y: 8 }}
@@ -36,6 +37,16 @@ const MainContent: React.FC = () => {
             transition={{ duration: 0.2 }}
           >
             <AdminView />
+          </motion.div>
+        ) : (
+          <motion.div
+            key="kanban-view"
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2 }}
+          >
+            <KanbanView />
           </motion.div>
         )}
       </AnimatePresence>
