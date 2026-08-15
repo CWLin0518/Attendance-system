@@ -9,9 +9,11 @@ import {
   Database,
   CalendarCheck,
   ChevronDown,
+  Server,
 } from 'lucide-react';
 import { EmployeeManageModal } from './EmployeeManageModal';
 import { SchemaReferenceModal } from './SchemaReferenceModal';
+import { ServerInfoModal } from './ServerInfoModal';
 
 export const Navbar: React.FC = () => {
   const {
@@ -28,6 +30,7 @@ export const Navbar: React.FC = () => {
 
   const [isEmployeeModalOpen, setIsEmployeeModalOpen] = useState(false);
   const [isSchemaModalOpen, setIsSchemaModalOpen] = useState(false);
+  const [isServerModalOpen, setIsServerModalOpen] = useState(false);
 
   const formattedDate = currentTime.toLocaleDateString('zh-TW', {
     year: 'numeric',
@@ -141,6 +144,17 @@ export const Navbar: React.FC = () => {
                 </div>
               </div>
 
+              {/* Server Info / Remote Access */}
+              <button
+                type="button"
+                onClick={() => setIsServerModalOpen(true)}
+                title="伺服器與外部連線指南"
+                className="p-2 rounded-xl text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50 border border-emerald-200 transition-colors flex items-center gap-1.5 text-xs font-semibold bg-emerald-50/50"
+              >
+                <Server className="w-4 h-4 text-emerald-600 animate-pulse" />
+                <span className="hidden sm:inline">伺服器連線</span>
+              </button>
+
               {/* Admin Employee Manage button */}
               <button
                 type="button"
@@ -183,6 +197,10 @@ export const Navbar: React.FC = () => {
       </header>
 
       {/* Modals */}
+      <ServerInfoModal
+        isOpen={isServerModalOpen}
+        onClose={() => setIsServerModalOpen(false)}
+      />
       <EmployeeManageModal
         isOpen={isEmployeeModalOpen}
         onClose={() => setIsEmployeeModalOpen(false)}

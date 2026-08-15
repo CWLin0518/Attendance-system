@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback } from 'react';
 import { AttendanceLog, Employee, LeaveRequest, LeaveType, ScheduleOverride, ToastMessage } from '../types';
 import { getInitialData } from '../data/initialData';
 import { formatDate, formatTime } from '../utils/timeCalculations';
@@ -27,6 +27,7 @@ interface AttendanceContextType {
   showToast: (type: 'success' | 'error' | 'info', message: string) => void;
   removeToast: (id: string) => void;
   resetToInitial: () => void;
+  syncWithServer: () => Promise<void>;
 }
 
 const AttendanceContext = createContext<AttendanceContextType | undefined>(undefined);
@@ -52,7 +53,6 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
   }, []);
 
   const todayStr = formatDate(currentTime);
-
   const selectedEmployee = employees.find((e) => e.id === selectedEmployeeId);
 
   const showToast = (type: 'success' | 'error' | 'info', message: string) => {
@@ -63,6 +63,32 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
   const removeToast = (id: string) => {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
+
+  // Sync data with backend API
+  const syncWithServer = useCallback(async () => {
+    try {
+      const res = await fetch('/api/data');
+      if (!res.ok) return;
+      const data = await res.json();
+      if (data && data.success) {
+        if (data.employees) setEmployees(data.employees);
+        if (data.attendanceLogs) setAttendanceLogs(data.attendanceLogs);
+        if (data.leaveRequests) setLeaveRequests(data.leaveRequests);
+        if (data.scheduleOverrides) setScheduleOverrides(data.scheduleOverrides);
+      }
+    } catch {
+      // Offline fallback: keep local state
+    }
+  }, []);
+
+  // Initial load from server and periodic polling for real-time multi-device sync
+  useEffect(() => {
+    syncWithServer();
+    const interval = setInterval(() => {
+      syncWithServer();
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [syncWithServer]);
 
   // Clock In
   const clockIn = (empId?: string): boolean => {
@@ -91,6 +117,7 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
 
     const nowTimeStr = formatTime(new Date());
 
+    // Optimistic UI update
     if (existingLog) {
       setAttendanceLogs((prev) =>
         prev.map((l) => (l.id === existingLog.id ? { ...l, in_time: nowTimeStr } : l))
@@ -107,6 +134,24 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
     }
 
     showToast('success', `【上班打卡成功】${empName} 已於 ${nowTimeStr} 簽到！`);
+
+    // Backend Sync
+    fetch('/api/clock-in', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ employeeId: targetId }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (!data.success && data.message) {
+          showToast('error', data.message);
+        }
+        syncWithServer();
+      })
+      .catch(() => {
+        // Handled silently
+      });
+
     return true;
   };
 
@@ -135,21 +180,38 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
 
     const nowTimeStr = formatTime(new Date());
 
+    // Optimistic UI update
     setAttendanceLogs((prev) =>
       prev.map((l) => (l.id === existingLog.id ? { ...l, out_time: nowTimeStr } : l))
     );
 
     showToast('success', `【下班打卡成功】${empName} 已於 ${nowTimeStr} 簽退，當月工時已即時更新！`);
+
+    // Backend Sync
+    fetch('/api/clock-out', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ employeeId: targetId }),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (!data.success && data.message) {
+          showToast('error', data.message);
+        }
+        syncWithServer();
+      })
+      .catch(() => {
+        // Handled silently
+      });
+
     return true;
   };
 
   // Apply Leave
   const applyLeave = (leaveData: { employee_id: string; date: string; type: LeaveType; reason?: string }): boolean => {
-    // Validation
     const employee = employees.find((e) => e.id === leaveData.employee_id);
     const empName = employee ? employee.name : leaveData.employee_id;
 
-    // Check if already requested leave on this date
     const exists = leaveRequests.some(
       (l) => l.employee_id === leaveData.employee_id && l.date === leaveData.date
     );
@@ -167,8 +229,23 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
       reason: leaveData.reason || '',
     };
 
-    setLeaveRequests((prev) => [...prev, newLeave]);
+    setLeaveRequests((prev) => [newLeave, ...prev]);
     showToast('success', `已成功為 ${empName} 申請 ${leaveData.date} 之【${leaveData.type}】！`);
+
+    fetch('/api/leave', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(leaveData),
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (!data.success && data.message) {
+          showToast('error', data.message);
+        }
+        syncWithServer();
+      })
+      .catch(() => {});
+
     return true;
   };
 
@@ -176,6 +253,10 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
   const cancelLeave = (leaveId: number) => {
     setLeaveRequests((prev) => prev.filter((l) => l.id !== leaveId));
     showToast('info', '已取消該筆請假申請。');
+
+    fetch(`/api/leave/${leaveId}`, { method: 'DELETE' })
+      .then(() => syncWithServer())
+      .catch(() => {});
   };
 
   // Set / Update Schedule Override
@@ -205,14 +286,28 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
       ? `設為【需出勤 (${override.start_time}~${override.end_time})】`
       : '設為【排休 (不需出勤)】';
     showToast('success', `已更新 ${empName} 於 ${override.date} 之排班：${statusDesc}`);
+
+    fetch('/api/schedule-override', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(override),
+    })
+      .then(() => syncWithServer())
+      .catch(() => {});
   };
 
-  // Remove Schedule Override (revert to default weekly schedule)
+  // Remove Schedule Override
   const removeScheduleOverride = (employee_id: string, date: string) => {
     setScheduleOverrides((prev) =>
       prev.filter((o) => !(o.employee_id === employee_id && o.date === date))
     );
     showToast('info', `已恢復 ${date} 之預設排班規則。`);
+
+    fetch(`/api/schedule-override?employee_id=${encodeURIComponent(employee_id)}&date=${encodeURIComponent(date)}`, {
+      method: 'DELETE',
+    })
+      .then(() => syncWithServer())
+      .catch(() => {});
   };
 
   // Add Employee
@@ -235,6 +330,14 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
     setEmployees((prev) => [...prev, newEmp]);
     setSelectedEmployeeId(newId);
     showToast('success', `成功新增員工：${newEmp.name} (工號: ${newId})`);
+
+    fetch('/api/employees', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, department, title }),
+    })
+      .then(() => syncWithServer())
+      .catch(() => {});
   };
 
   // Delete Employee
@@ -248,7 +351,6 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
     }
 
     setEmployees((prev) => prev.filter((e) => e.id !== employeeId));
-    // clean related data
     setAttendanceLogs((prev) => prev.filter((l) => l.employee_id !== employeeId));
     setLeaveRequests((prev) => prev.filter((l) => l.employee_id !== employeeId));
     setScheduleOverrides((prev) => prev.filter((o) => o.employee_id !== employeeId));
@@ -259,6 +361,12 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
     }
 
     showToast('info', `已刪除員工：${target.name} (${target.id})`);
+
+    fetch(`/api/employees/${employeeId}`, {
+      method: 'DELETE',
+    })
+      .then(() => syncWithServer())
+      .catch(() => {});
   };
 
   // Reset to initial prototype state
@@ -270,6 +378,10 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
     setLeaveRequests(fresh.leaveRequests);
     setScheduleOverrides(fresh.scheduleOverrides);
     showToast('info', '已重置系統至初始資料狀態。');
+
+    fetch('/api/reset', { method: 'POST' })
+      .then(() => syncWithServer())
+      .catch(() => {});
   };
 
   return (
@@ -298,6 +410,7 @@ export const AttendanceProvider: React.FC<{ children: ReactNode }> = ({ children
         showToast,
         removeToast,
         resetToInitial,
+        syncWithServer,
       }}
     >
       {children}
