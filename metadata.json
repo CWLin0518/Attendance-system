@@ -1,0 +1,6 @@
+{
+  "name": "簡易網頁出勤系統",
+  "description": "輕量級響應式網頁版出勤管理系統，具備員工前台打卡與請假、即時工時結算、管理後台動態排班與人員管理功能。",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
