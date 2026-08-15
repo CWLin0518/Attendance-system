@@ -1,6 +1,6 @@
 # AGENTS.md - 專案開發與 AI Agent 協同規範手冊
 
-> 本文件為 **出勤管理與專案看板系統 (Attendance & Project Kanban System)** 的核心架構與開發指引。所有參與維護、擴充或重構之工程師與 AI Agent 均應遵循本文檔所規範之架構原則、業務邏輯、型別定義與程式碼風格。
+> 本文件為 **出勤管理與專案看板系統 (Attendance & Project Kanban System)** 的核心架構與開發指引。完整分章規格文件請查閱 [docs/spec/README.md](file:///c:/Users/CHIA%20WEI%20LIN/Desktop/出勤系統測試/Attendance-system/docs/spec/README.md)。所有參與維護、擴充或重構之工程師與 AI Agent 均應遵循本文檔所規範之架構原則、業務邏輯、型別定義與程式碼風格。
 
 ---
 
