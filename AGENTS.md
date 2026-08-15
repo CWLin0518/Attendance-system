@@ -215,8 +215,11 @@ npm run start
 # 5. 執行 TypeScript 型別檢查
 npm run lint
 
-# 6. Windows 環境下一鍵啟動服務（雙擊或執行）
+# 6. Windows 環境下一鍵啟動服務（自動建置、開啟瀏覽器、關閉時自動清理）
 start-server.bat
+
+# 7. Windows 環境下一鍵停止伺服器（關閉佔用 3000 Port 之處理序）
+stop-server.bat
 ```
 
 ---

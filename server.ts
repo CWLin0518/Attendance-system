@@ -435,7 +435,7 @@ if (fs.existsSync(distPath)) {
 // ----------------------------------------------------
 // Start Server and Print Access URLs
 // ----------------------------------------------------
-app.listen(PORT, '0.0.0.0', () => {
+const server = app.listen(PORT, '0.0.0.0', () => {
   const interfaces = os.networkInterfaces();
   const localIps: string[] = [];
 
@@ -460,5 +460,27 @@ app.listen(PORT, '0.0.0.0', () => {
   } else {
     console.log(`   👉 http://<您的電腦區網IP>:${PORT}`);
   }
+  console.log('----------------------------------------------------');
+  console.log('💡 提示：關閉此命令視窗或按下 Ctrl+C 即可停止伺服器');
   console.log('====================================================');
 });
+
+// ----------------------------------------------------
+// Graceful Shutdown
+// ----------------------------------------------------
+process.on('SIGINT', () => {
+  console.log('\n🛑 收到中斷訊號，正在關閉伺服器...');
+  server.close(() => {
+    console.log('✅ 伺服器已安全停止。');
+    process.exit(0);
+  });
+});
+
+process.on('SIGTERM', () => {
+  console.log('\n🛑 收到終止訊號，正在關閉伺服器...');
+  server.close(() => {
+    console.log('✅ 伺服器已安全停止。');
+    process.exit(0);
+  });
+});
+
